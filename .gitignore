@@ -1,0 +1,10 @@
+check.py
+run.py
+
+.env
+venv/
+data/
+outputs/
+weights/
+*.pt
+__pycache__/
