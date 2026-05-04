@@ -1,5 +1,8 @@
+import cv2
+import os
 import torch
 import numpy as np
+from typing import Tuple
 from ultralytics import YOLO
 
 PERSON_CLASS_ID = 0
@@ -16,9 +19,9 @@ class DroneDetector:
     def __init__(
         self,
         weights: str = "yolov8s.pt",
-        conf_thresh: float = 0.10,
+        conf_thresh: float = 0.15,
         iou_thresh: float = 0.45,
-        input_size: int = 640,
+        input_size: int = 960,
         device: str = None,
     ):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -31,7 +34,7 @@ class DroneDetector:
 
     def detect(self, frame: np.ndarray) -> np.ndarray:
         """
-        Run detection on a single BGR frame (as returned by cv2.imread).
+        Run detection on a single BGR frame.
 
         Returns
         -------
@@ -56,10 +59,45 @@ class DroneDetector:
 
         return np.hstack([xyxy, confs]).astype(np.float32)
 
+    def detect_tiled(
+        self,
+        frame: np.ndarray,
+        tiler,
+    ) -> Tuple[np.ndarray, dict]:
+        """
+        Run tiled inference using adaptive tiling strategy.
+
+        Returns
+        -------
+        detections : (N, 5) [x1, y1, x2, y2, conf]
+        info       : dict with tiling metadata for logging
+        """
+        from utils.tiler import slice_frame, merge_detections
+
+        frame_gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        cfg           = tiler.get_config(frame_gray)
+        tiles, coords = slice_frame(frame, cfg)
+
+        tile_dets = []
+        for tile in tiles:
+            dets = self.detect(tile)
+            tile_dets.append(dets)
+
+        merged = merge_detections(tile_dets, coords, iou_thresh=self.iou)
+
+        info = {
+            "n_tiles":   len(tiles),
+            "flow_mag":  tiler.last_flow_magnitude,
+            "strategy":  tiler.last_config_name,
+            "raw_dets":  sum(len(d) for d in tile_dets),
+            "after_nms": len(merged),
+        }
+
+        return merged, info
+
     @property
     def model_size_mb(self) -> float:
         """Return approximate model size for the report."""
-        import os
         try:
             path = self.model.ckpt_path
             return os.path.getsize(path) / 1e6

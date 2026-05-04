@@ -4,36 +4,38 @@ import argparse
 import numpy as np
 from pathlib import Path
 
-from models.detector        import DroneDetector
+from models.detector           import DroneDetector
 from tracker.bytetrack_wrapper import DroneTracker
-from tracker.gmc            import GlobalMotionCompensator
-from utils.visualiser       import draw_tracks, draw_hud
+from tracker.gmc               import GlobalMotionCompensator
+from utils.visualiser          import draw_tracks, draw_hud
+from utils.tiler               import AdaptiveTiler
 
 
 def parse_args():
     p = argparse.ArgumentParser(description="Aerial Guardian — drone MOT pipeline")
-    p.add_argument("--input",     required=True,       help="Input video path or image folder")
-    p.add_argument("--output",    default="outputs/result.mp4")
-    p.add_argument("--weights",   default="yolov8s.pt")
-    p.add_argument("--conf",      type=float, default=0.25)
-    p.add_argument("--iou",       type=float, default=0.45)
-    p.add_argument("--imgsz", type=int, default=960)
-    p.add_argument("--use-gmc",   action="store_true",
+    p.add_argument("--input",      required=True,       help="Input video path")
+    p.add_argument("--output",     default="outputs/result.mp4")
+    p.add_argument("--weights",    default="yolov8s.pt")
+    p.add_argument("--conf",       type=float, default=0.15)
+    p.add_argument("--iou",        type=float, default=0.45)
+    p.add_argument("--imgsz",      type=int,   default=960)
+    p.add_argument("--use-gmc",    action="store_true",
                    help="Enable global motion compensation")
-    p.add_argument("--label",     default="BASELINE",
-                   help="Label shown in HUD — change per experiment")
-    p.add_argument("--max-frames",type=int,   default=None,
+    p.add_argument("--tiled",      action="store_true",
+                   help="Enable adaptive tiled inference")
+    p.add_argument("--label",      default="BASELINE",
+                   help="Label shown in HUD")
+    p.add_argument("--max-frames", type=int,   default=None,
                    help="Cap frames for quick testing")
     return p.parse_args()
 
 
 def open_source(input_path: str):
-    """Return (cv2.VideoCapture, fps, total_frames)."""
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
         raise FileNotFoundError(f"Cannot open: {input_path}")
-    fps    = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    total  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps   = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     return cap, fps, total
 
 
@@ -48,20 +50,22 @@ def main():
 
     detector = DroneDetector(
         weights=args.weights,
-        conf_thresh=0.15,
-        iou_thresh=0.45,
+        conf_thresh=args.conf,
+        iou_thresh=args.iou,
         input_size=args.imgsz,
     )
-    tracker  = DroneTracker(
+    tracker = DroneTracker(
         track_thresh=0.25,
         match_thresh=0.8,
         track_buffer=30,
         tail_length=30,
     )
-    gmc = GlobalMotionCompensator() if args.use_gmc else None
+    gmc   = GlobalMotionCompensator() if args.use_gmc else None
+    tiler = AdaptiveTiler(warmup_frames=5) if args.tiled else None
 
     print(f"[Pipeline] Model size : {detector.model_size_mb:.1f} MB")
     print(f"[Pipeline] GMC        : {'ON' if gmc else 'OFF'}")
+    print(f"[Pipeline] Tiling     : {'ON (adaptive)' if tiler else 'OFF'}")
     print(f"[Pipeline] Input size : {args.imgsz}px")
 
     cap, src_fps, total_frames = open_source(args.input)
@@ -72,9 +76,9 @@ def main():
 
     writer = open_writer(args.output, src_fps, (W, H))
 
-    t_det   = 0.0
-    t_track = 0.0
-    t_draw  = 0.0
+    t_det    = 0.0
+    t_track  = 0.0
+    t_draw   = 0.0
     n_frames = 0
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -88,17 +92,25 @@ def main():
         if args.max_frames and n_frames >= args.max_frames:
             break
 
-        n_frames += 1
-        frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        n_frames   += 1
+        frame_gray  = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         t0 = time.perf_counter()
-        detections = detector.detect(frame)
+        if tiler is not None:
+            detections, tile_info = detector.detect_tiled(frame, tiler)
+            if n_frames % 50 == 0:
+                print(f"  [Tiler] tiles={tile_info['n_tiles']} | "
+                      f"flow={tile_info['flow_mag']:.2f} | "
+                      f"strategy={tile_info['strategy']} | "
+                      f"dets={tile_info['after_nms']}")
+        else:
+            detections = detector.detect(frame)
         t_det += time.perf_counter() - t0
 
         t1 = time.perf_counter()
         if gmc is not None and len(detections) > 0:
             H_mat = gmc.update(frame_gray, detections[:, :4])
-            
+
         tracks = tracker.update(detections, frame.shape[:2])
         t_track += time.perf_counter() - t1
 
@@ -107,8 +119,8 @@ def main():
 
         elapsed    = t_det + t_track
         fps_so_far = n_frames / elapsed if elapsed > 0 else 0.0
-        frame = draw_hud(frame, fps_so_far, len(tracks), label=args.label)
-        t_draw += time.perf_counter() - t2
+        frame      = draw_hud(frame, fps_so_far, len(tracks), label=args.label)
+        t_draw    += time.perf_counter() - t2
 
         writer.write(frame)
 
@@ -119,8 +131,8 @@ def main():
     cap.release()
     writer.release()
 
-    avg_fps_det   = n_frames / t_det   if t_det   > 0 else 0
-    avg_fps_full  = n_frames / (t_det + t_track) if (t_det + t_track) > 0 else 0
+    avg_fps_det  = n_frames / t_det                if t_det              > 0 else 0
+    avg_fps_full = n_frames / (t_det + t_track)    if (t_det + t_track)  > 0 else 0
 
     print(f"\n{'='*50}")
     print(f"BENCHMARK — {args.label}")
