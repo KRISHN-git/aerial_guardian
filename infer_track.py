@@ -17,7 +17,7 @@ def parse_args():
     p.add_argument("--weights",   default="yolov8s.pt")
     p.add_argument("--conf",      type=float, default=0.25)
     p.add_argument("--iou",       type=float, default=0.45)
-    p.add_argument("--imgsz",     type=int,   default=640)
+    p.add_argument("--imgsz", type=int, default=960)
     p.add_argument("--use-gmc",   action="store_true",
                    help="Enable global motion compensation")
     p.add_argument("--label",     default="BASELINE",
