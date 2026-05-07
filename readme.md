@@ -441,41 +441,45 @@ python benchmark_onnx.py
 
 ## Repo Structure
 
+```text
 AerialGuardian/
 ├── data/
-│   ├── drone_person.yaml          YOLO dataset config
-│   └── yolo_dataset/              converted training data
-│       ├── train/images + labels
-│       └── val/images + labels
+│   ├── drone_person.yaml
+│   └── yolo_dataset/
+│       ├── train/
+│       │   ├── images/
+│       │   └── labels/
+│       └── val/
+│           ├── images/
+│           └── labels/
 ├── models/
-│   ├── detector.py                YOLOv8 PyTorch wrapper
-│   └── onnx_detector.py           ONNX Runtime wrapper
+│   ├── detector.py
+│   └── onnx_detector.py
 ├── tracker/
-│   ├── bytetrack_wrapper.py       ByteTrack + tail buffer
-│   └── gmc.py                     ORB-RANSAC GMC (custom)
+│   ├── bytetrack_wrapper.py
+│   └── gmc.py
 ├── utils/
-│   ├── tiler.py                   Adaptive tiled inference
-│   ├── visualiser.py              Drawing + HUD
-│   ├── annotation_parser.py       VisDrone MOT reader
-│   ├── convert_annotations.py     VisDrone DET → YOLO
-│   └── seq_to_video.py            JPEG sequence → MP4
+│   ├── tiler.py
+│   ├── visualiser.py
+│   ├── annotation_parser.py
+│   ├── convert_annotations.py
+│   └── seq_to_video.py
 ├── docs/
-│   └── edge_deployment.md         Jetson deployment guide
+│   └── edge_deployment.md
 ├── weights/
-│   ├── drone_person_best.pt        Fine-tuned weights (19.9 MB)
-│   └── drone_person_best.onnx      ONNX export
+│   ├── drone_person_best.pt
+│   └── drone_person_best.onnx
 ├── outputs/
-│   └── FINAL_aerial_guardian.mp4   Submission video
-├── infer_track.py                  Main pipeline entry point
-├── train.py                        Fine-tuning script
-├── evaluate.py                     mAP + FPS evaluation
-├── benchmark.py                    Results table
-├── benchmark_resolution.py         Resolution analysis
-├── benchmark_onnx.py               PyTorch vs ONNX comparison
+│   └── FINAL_aerial_guardian.mp4
+├── infer_track.py
+├── train.py
+├── evaluate.py
+├── benchmark.py
+├── benchmark_resolution.py
+├── benchmark_onnx.py
 ├── requirements.txt
 └── README.md
-
----
+```
 
 ## Dataset
 
