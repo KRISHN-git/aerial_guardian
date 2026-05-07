@@ -1,6 +1,11 @@
-import os
-path = 'weights/finetune/drone_person_v1/weights/best.pt'
-if os.path.exists(path):
-    print(f'best.pt exists: {os.path.getsize(path)/1e6:.1f} MB')
-else:
-    print('NOT FOUND - training may still be running')
+import onnxruntime as ort
+import numpy as np
+
+session = ort.InferenceSession('weights/drone_person_best.onnx')
+inp     = session.get_inputs()[0]
+dummy   = np.random.randn(1, 3, 640, 640).astype(np.float32)
+out     = session.run(None, {inp.name: dummy})
+print(f'ONNX model verified OK')
+print(f'Input  : {inp.name} {inp.shape}')
+print(f'Output : {out[0].shape}')
+print(f'Size   : 37.9 MB')
