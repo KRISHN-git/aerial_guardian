@@ -1,11 +1,12 @@
-import onnxruntime as ort
-import numpy as np
+import os
 
-session = ort.InferenceSession('weights/drone_person_best.onnx')
-inp     = session.get_inputs()[0]
-dummy   = np.random.randn(1, 3, 640, 640).astype(np.float32)
-out     = session.run(None, {inp.name: dummy})
-print(f'ONNX model verified OK')
-print(f'Input  : {inp.name} {inp.shape}')
-print(f'Output : {out[0].shape}')
-print(f'Size   : 37.9 MB')
+videos = [
+    'outputs/FINAL_aerial_guardian.mp4',
+    'outputs/baseline_640.mp4',
+    'outputs/finetuned_960.mp4',
+]
+
+for v in videos:
+    exists = os.path.exists(v)
+    size = os.path.getsize(v) / 1e6 if exists else 0
+    print(f"{'OK' if exists else 'MISSING'} {v} ({size:.1f}MB)")

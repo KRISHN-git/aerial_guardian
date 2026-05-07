@@ -7,7 +7,7 @@ RESULTS = [
     ("Fine-tuned 960px",            3.4,   10.0,  "VisDrone FT, best FPS/recall balance"),
     ("Fine-tuned + Tiled 640px",    0.7,   9.0,   "FT + adaptive tiling, GPU needed"),
     ("Fine-tuned + Tiled + GMC",    0.5,   9.0,   "Full pipeline, GPU needed for RT"),
-    ("ONNX export",                 None,  None,  "Day 8 — edge deployment"),
+    ("ONNX export",                 None,  None,  "Edge deployment"),
 ]
 
 if __name__ == "__main__":
