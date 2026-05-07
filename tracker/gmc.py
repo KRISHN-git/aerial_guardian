@@ -33,7 +33,7 @@ class GlobalMotionCompensator:
         """
         Compute homography H from previous frame to current frame.
 
-        Returns H (3×3) or identity if estimation fails.
+        Returns H (3×  3) or identity if estimation fails.
         Always call this BEFORE passing detections to ByteTrack.
         """
         H = np.eye(3, dtype=np.float32)

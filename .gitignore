@@ -1,6 +1,6 @@
 check.py
 run.py
-check.py
+check_DET.py
 
 .env
 venv/
